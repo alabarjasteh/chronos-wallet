@@ -1,0 +1,9 @@
+.DS_Store
+
+# Go build outputs
+/bin/
+/dist/
+/chronos-wallet
+
+# Local environment
+.env
