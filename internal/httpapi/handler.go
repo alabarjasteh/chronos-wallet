@@ -25,6 +25,9 @@ func New(service *service.Service) http.Handler {
 	r.Use(middleware.Timeout(30 * time.Second))
 
 	r.Get("/healthz", h.health)
+	r.Get("/swagger", redirectSwagger)
+	r.Get("/swagger/", swaggerUI)
+	r.Get("/swagger/openapi.yaml", openAPISpec)
 	r.Post("/wallets", h.createWallet)
 	r.Get("/wallets/{walletID}/balance", h.balance)
 	r.Post("/wallets/{walletID}/deposits", h.deposit)

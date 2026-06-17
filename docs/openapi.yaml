@@ -1,0 +1,249 @@
+openapi: 3.0.3
+info:
+  title: Chronos Wallet API
+  version: 0.1.0
+  description: API for creating wallets, depositing funds, and scheduling execution-time validated withdrawals.
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /wallets:
+    post:
+      summary: Create a wallet
+      responses:
+        "201":
+          description: Wallet created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+  /wallets/{wallet_id}/balance:
+    get:
+      summary: Get wallet balance
+      parameters:
+        - $ref: "#/components/parameters/WalletID"
+      responses:
+        "200":
+          description: Current balance in minor units
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /wallets/{wallet_id}/deposits:
+    post:
+      summary: Deposit funds into a wallet
+      parameters:
+        - $ref: "#/components/parameters/WalletID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AmountRequest"
+            examples:
+              deposit:
+                value:
+                  amount: 10000
+      responses:
+        "201":
+          description: Deposit accepted and balance updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /wallets/{wallet_id}/withdrawals:
+    post:
+      summary: Schedule a withdrawal
+      description: The wallet balance is validated at execute_at, not when the request is submitted.
+      parameters:
+        - $ref: "#/components/parameters/WalletID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleWithdrawalRequest"
+            examples:
+              schedule:
+                value:
+                  amount: 2500
+                  execute_at: "2030-01-01T12:30:00Z"
+      responses:
+        "202":
+          description: Withdrawal scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Withdrawal"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /withdrawals/{withdrawal_id}:
+    get:
+      summary: Get withdrawal status
+      parameters:
+        - name: withdrawal_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Withdrawal status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Withdrawal"
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  parameters:
+    WalletID:
+      name: wallet_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    AmountRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Amount in minor units.
+    ScheduleWithdrawalRequest:
+      type: object
+      required: [amount, execute_at]
+      properties:
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Amount in minor units.
+        execute_at:
+          type: string
+          format: date-time
+          description: Future RFC3339 timestamp.
+    Wallet:
+      type: object
+      required: [id, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+    Balance:
+      type: object
+      required: [wallet_id, balance]
+      properties:
+        wallet_id:
+          type: string
+          format: uuid
+        balance:
+          type: integer
+          format: int64
+          description: Balance in minor units.
+    Withdrawal:
+      type: object
+      required:
+        - id
+        - wallet_id
+        - amount
+        - execute_at
+        - status
+        - idempotency_key
+        - attempts
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        wallet_id:
+          type: string
+          format: uuid
+        amount:
+          type: integer
+          format: int64
+        execute_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - SCHEDULED
+            - PROCESSING
+            - SUCCEEDED
+            - FAILED_INSUFFICIENT_FUNDS
+            - FAILED_BANK_REJECTED
+            - REQUIRES_RECONCILIATION
+        idempotency_key:
+          type: string
+          format: uuid
+        bank_reference:
+          type: string
+          nullable: true
+        attempts:
+          type: integer
+        last_error:
+          type: string
+          nullable: true
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
