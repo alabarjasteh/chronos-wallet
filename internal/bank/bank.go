@@ -67,22 +67,28 @@ func (c *MockClient) Transfer(ctx context.Context, req TransferRequest) (Transfe
 		return existing, nil
 	}
 
+	result := c.newResult(req.IdempotencyKey)
 	if c.rand.Float64() < c.networkErrorRate {
+		c.results[req.IdempotencyKey] = result
 		return TransferResult{Status: TransferUnknown}, context.DeadlineExceeded
 	}
 
+	c.results[req.IdempotencyKey] = result
+	if result.Status == TransferRejected {
+		return result, ErrTransferRejected
+	}
+	return result, nil
+}
+
+func (c *MockClient) newResult(idempotencyKey string) TransferResult {
 	result := TransferResult{
-		Reference: fmt.Sprintf("mock-bank-%s", req.IdempotencyKey),
+		Reference: fmt.Sprintf("mock-bank-%s", idempotencyKey),
 		Status:    TransferSucceeded,
 	}
 	if c.rand.Float64() < c.failureRate {
 		result.Status = TransferRejected
-		c.results[req.IdempotencyKey] = result
-		return result, ErrTransferRejected
 	}
-
-	c.results[req.IdempotencyKey] = result
-	return result, nil
+	return result
 }
 
 func (c *MockClient) Status(ctx context.Context, idempotencyKey string) (TransferResult, error) {
